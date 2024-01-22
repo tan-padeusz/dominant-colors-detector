@@ -3,7 +3,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 
 public class ColorDetector {
-    private final Thread worker;
+    private Thread worker;
     private InputData data;
 
     private final JProgressBar progressBar;
@@ -14,20 +14,25 @@ public class ColorDetector {
     public ColorDetector(JProgressBar progressBar, JLabel[] colorLabels) {
         this.progressBar = progressBar;
         this.colorLabels = colorLabels;
-        this.worker = this.createWorkerThread();
     }
 
-    private Thread createWorkerThread() {
-        return new Thread(() -> {
+    private void initializeWorkerThread() {
+        this.worker = new Thread(() -> {
             this.isRunning = true;
             this.reset();
             ColorThread[] colorThreads = initializeColorThreads();
-            this.waitForColorThreadsToFinishWork(colorThreads);
+            boolean result = this.waitForColorThreadsToFinishWork(colorThreads);
+            if (!result) {
+                this.reset();
+                this.isRunning = false;
+                return;
+            }
             int[][][] colors = this.sumColorsFromColorThreads(colorThreads);
             Color[] dominantColors = this.findAllDominantColors(colors);
             this.showDominantColors(dominantColors);
             this.isRunning = false;
         });
+        this.worker.start();
     }
 
     private void reset() {
@@ -49,17 +54,24 @@ public class ColorDetector {
         return colorThreads;
     }
 
-    private void waitForColorThreadsToFinishWork(ColorThread[] colorThreads) {
-        boolean areColorThreadsFinished = false;
-        while (!areColorThreadsFinished) {
-            areColorThreadsFinished = true;
+    private boolean waitForColorThreadsToFinishWork(ColorThread[] colorThreads) {
+        boolean areColorThreadsRunning = true;
+        while (areColorThreadsRunning) {
+            if (this.worker.isInterrupted()) {
+                for (ColorThread ct : colorThreads) {
+                    ct.stop();
+                }
+                return false;
+            }
+            areColorThreadsRunning = false;
             int pixelsChecked = 0;
             for (ColorThread colorThread : colorThreads) {
-                areColorThreadsFinished &= colorThread.isFinished();
+                areColorThreadsRunning |= colorThread.isRunning();
                 pixelsChecked += colorThread.getPixelsChecked();
             }
             this.progressBar.setValue(pixelsChecked);
         }
+        return true;
     }
 
     private int[][][] sumColorsFromColorThreads(ColorThread[] colorThreads) {
@@ -141,19 +153,11 @@ public class ColorDetector {
         if (this.isRunning) {
             return;
         }
-//        this.reset();
         this.data = data;
-        this.worker.start();
+        this.initializeWorkerThread();
     }
 
     public void stop() {
         this.worker.interrupt();
     }
-
-//    private void reset() {
-//        this.colorThreads.clear();
-//        this.dominantColors.clear();
-//        this.pixelsChecked = 0;
-//        this.isFinished = false;
-//    }
 }

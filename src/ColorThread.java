@@ -8,14 +8,15 @@ public class ColorThread {
 
     private int[][][] colors = new int[256][256][256];
     private int pixelsChecked = 0;
-    private boolean isFinished = true;
+    private boolean isRunning;
 
     public ColorThread(int id, InputData data) {
         this.id = id;
         this.data = data;
         this.thread = new Thread(() -> {
+            this.isRunning = true;
             this.countColors(data.getImage(), data.getSimilarityThreshold(), this.data.getThreadsCount());
-            this.isFinished = true;
+            this.isRunning = false;
         });
     }
 
@@ -27,12 +28,12 @@ public class ColorThread {
         return this.pixelsChecked;
     }
 
-    public boolean isFinished() {
-        return this.isFinished;
+    public boolean isRunning() {
+        return this.isRunning;
     }
 
     public void start() {
-        if (!this.isFinished) {
+        if (this.isRunning) {
             return;
         }
         this.reset();
@@ -40,27 +41,31 @@ public class ColorThread {
     }
 
     public void stop() {
-        this.thread.interrupt();
+        this.pixelsChecked = Integer.MAX_VALUE;
     }
 
     private void reset() {
         this.colors = new int[256][256][256];
         this.pixelsChecked = 0;
-        this.isFinished = false;
+        this.isRunning = false;
     }
 
     private void countColors(BufferedImage image, int similarityThreshold, int threadsCount) {
+        int totalPixels = image.getHeight() * image.getWidth();
+        int pixelsToCheck = totalPixels / threadsCount;
         int heightPartSize = image.getHeight() / threadsCount;
         int startHeight = this.id * heightPartSize;
         int endHeight = (this.id + 1) * heightPartSize;
-        for (int colum = 0; colum < image.getWidth(); colum++) {
-            for (int row = startHeight; row < endHeight; row++) {
-                if (Thread.currentThread().isInterrupted()) {
-                    return;
-                }
-                Color color = new Color(image.getRGB(colum, row));
-                this.addSimilarColors(color, similarityThreshold);
-                this.pixelsChecked++;
+        int column = 0;
+        int row = startHeight;
+        while (this.pixelsChecked < pixelsToCheck) {
+            Color color = new Color(image.getRGB(column, row));
+            this.addSimilarColors(color, similarityThreshold);
+            this.pixelsChecked++;
+            row++;
+            if (row >= endHeight) {
+                row = startHeight;
+                column++;
             }
         }
     }
