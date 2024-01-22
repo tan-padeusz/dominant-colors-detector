@@ -3,7 +3,6 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.image.BufferedImage;
-import java.util.List;
 
 public class DetectorApplication {
     private final JFrame applicationFrame = new JFrame();
@@ -36,8 +35,9 @@ public class DetectorApplication {
     private final JFileChooser imageFileChooser = new JFileChooser();
     private final JProgressBar progressBar = new JProgressBar();
 
-    private BufferedImage selectedImage = null;
-    private ColorDetector detector;
+    private BufferedImage sourceImage = null;
+    private final BufferedImage loadingScreenImage;
+    private final ColorDetector detector;
 
     public DetectorApplication() {
         this.configureFrame();
@@ -47,6 +47,9 @@ public class DetectorApplication {
         this.configureInputs();
         this.configureOther();
         this.applicationFrame.pack();
+
+        this.loadingScreenImage = ImageLoader.loadImageFromFile("loading-screen.png");
+        this.detector = new ColorDetector(progressBar, new JLabel[] { this.firstColorLabel, this.secondColorLabel, this.thirdColorLabel, this.fourthColorLabel });
     }
 
     private void configureFrame() {
@@ -85,6 +88,8 @@ public class DetectorApplication {
     private void configureImageLabels() {
         this.sourceImageLabel.setBackground(Color.BLACK);
         this.sourceImageLabel.setBounds(220, 10, 590, 440);
+        this.sourceImageLabel.setHorizontalAlignment(JLabel.CENTER);
+        this.sourceImageLabel.setVerticalAlignment(JLabel.CENTER);
         this.applicationFrame.add(this.sourceImageLabel);
 
         this.firstColorLabel.setBackground(Color.BLACK);
@@ -169,26 +174,31 @@ public class DetectorApplication {
     }
 
     private void selectSourceImageButtonClick(ActionEvent event) {
-        int dialogResult = this.imageFileChooser.showDialog(null, "SELECT");
+        int dialogResult = this.imageFileChooser.showDialog(null, "Select");
         if (dialogResult == JFileChooser.APPROVE_OPTION) {
-            String filePath = this.imageFileChooser.getSelectedFile().getAbsolutePath();
-            this.sourceImagePathTextField.setText(filePath);
-            BufferedImage image = ImageLoader.loadImageFromFile(filePath);
-            this.selectedImage = image;
-            if (image == null) {
-                this.showError("Error occurred while loading image " + filePath + "!");
-                return;
-            }
-            ImageLoader.loadImageIntoLabel(image, this.sourceImageLabel);
+            new Thread(() -> {
+                this.selectSourceImageButton.setEnabled(false);
+                ImageLoader.loadImageIntoLabel(this.loadingScreenImage, this.sourceImageLabel);
+                String filePath = this.imageFileChooser.getSelectedFile().getAbsolutePath();
+                this.sourceImagePathTextField.setText(filePath);
+                BufferedImage image = ImageLoader.loadImageFromFile(filePath);
+                this.sourceImage = image;
+                if (image == null) {
+                    this.showError("Error occurred while loading image " + filePath + "!");
+                    this.selectSourceImageButton.setEnabled(true);
+                    return;
+                }
+                ImageLoader.loadImageIntoLabel(image, this.sourceImageLabel);
+                this.selectSourceImageButton.setEnabled(true);
+            }).start();
         }
     }
 
     private InputData validateInputs() {
         String error = "";
 
-        String sourceImageFilePath = InputValidator.validateSourceImageFilePath(this.sourceImagePathTextField.getText().trim());
-        if (sourceImageFilePath == null) {
-            error += "Invalid image file! Please choose .jpg or .png file!\n";
+        if (this.sourceImage == null) {
+            error += "Source image hasn't been selected!";
         }
 
         Integer dominantColorsCount = InputValidator.validateNumericInput(this.dominantColorsCountTextField.getText().trim(), 1, 4);
@@ -204,15 +214,16 @@ public class DetectorApplication {
         int coresNumber = Runtime.getRuntime().availableProcessors();
         Integer threadsCount = InputValidator.validateNumericInput(this.threadsCountTextField.getText().trim(), 1, coresNumber);
         if (threadsCount == null) {
-            error += "Invalid threads count value! Please enter an integer number between 1 and " + coresNumber + " (inclusive)!\n";
+            error += "Invalid threads count value! Please enter an integer number between 1 and " + coresNumber + " (inclusive)!";
         }
 
-        error = error.trim();
         if (!error.isBlank()) {
             this.showError(error);
             return null;
         }
-        return new InputData(this.selectedImage, dominantColorsCount, similarityThreshold, threadsCount);
+
+        // noinspection DataFlowIssue
+        return new InputData(this.sourceImage, dominantColorsCount, similarityThreshold, threadsCount);
     }
 
     private void startButtonClick(ActionEvent event) {
@@ -220,14 +231,8 @@ public class DetectorApplication {
         if (data == null) {
             return;
         }
-        this.makeColorLabelsInvisible();
-        this.resetProgressBar();
-
-        this.detector = new ColorDetector(progressBar, new JLabel[] { this.firstColorLabel, this.secondColorLabel, this.thirdColorLabel, this.fourthColorLabel });
         this.detector.start(data);
     }
-
-
 
     private void makeColorLabelsInvisible() {
         this.firstColorLabel.setVisible(false);
@@ -238,7 +243,7 @@ public class DetectorApplication {
 
     private void resetProgressBar() {
         this.progressBar.setValue(0);
-        this.progressBar.setMaximum(this.selectedImage.getHeight() * this.selectedImage.getWidth());
+        this.progressBar.setMaximum(this.sourceImage.getHeight() * this.sourceImage.getWidth());
     }
 
     private void stopButtonClick(ActionEvent event) {

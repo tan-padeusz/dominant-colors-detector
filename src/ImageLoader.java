@@ -15,8 +15,30 @@ public class ImageLoader {
     }
 
     public static void loadImageIntoLabel(BufferedImage image, JLabel label) {
-        ImageIcon icon = new ImageIcon(image.getScaledInstance(label.getWidth(), label.getHeight(), Image.SCALE_FAST));
+        Image scaledImage = ImageLoader.getScaledImage(image, label);
+        ImageIcon icon = new ImageIcon(scaledImage);
         label.setIcon(icon);
+    }
+
+    private static Image getScaledImage(BufferedImage image, JLabel label) {
+        int originalWidth = image.getWidth();
+        int originalHeight = image.getHeight();
+        int boundaryWidth = label.getWidth();
+        int boundaryHeight = label.getHeight();
+        int newWidth = originalWidth;
+        int newHeight = originalHeight;
+
+        if (originalWidth > boundaryWidth) {
+            newWidth = boundaryWidth;
+            newHeight = (newWidth * originalHeight) / originalWidth;
+        }
+
+        if (newHeight > boundaryHeight) {
+            newHeight = boundaryHeight;
+            newWidth = (newHeight * originalWidth) / originalHeight;
+        }
+
+        return image.getScaledInstance(newWidth, newHeight, Image.SCALE_FAST);
     }
 
     public static void loadColorIntoLabel(Color color, JLabel label) {

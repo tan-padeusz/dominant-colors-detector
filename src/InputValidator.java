@@ -1,13 +1,6 @@
 public class InputValidator {
-    public static String validateSourceImageFilePath(String filePath) {
-        if (filePath.endsWith(".jpg") || filePath.endsWith(".png")) {
-            return filePath;
-        } else {
-            return null;
-        }
-    }
-
     public static Integer validateNumericInput(String text, int min, int max) {
+        text = text.trim();
         if (text.isBlank() || InputValidator.isStringNotInteger(text)) {
             return null;
         }

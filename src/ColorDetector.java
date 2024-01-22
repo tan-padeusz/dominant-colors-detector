@@ -130,7 +130,7 @@ public class ColorDetector {
         if (this.isRunning) {
             return;
         }
-        this.reset();
+//        this.reset();
         this.data = data;
         this.worker.start();
     }
@@ -139,10 +139,10 @@ public class ColorDetector {
         this.worker.interrupt();
     }
 
-    private void reset() {
-        this.colorThreads.clear();
-        this.dominantColors.clear();
-        this.pixelsChecked = 0;
-        this.isFinished = false;
-    }
+//    private void reset() {
+//        this.colorThreads.clear();
+//        this.dominantColors.clear();
+//        this.pixelsChecked = 0;
+//        this.isFinished = false;
+//    }
 }
