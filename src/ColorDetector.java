@@ -1,5 +1,6 @@
 import javax.swing.*;
 import java.awt.*;
+import java.awt.image.BufferedImage;
 
 public class ColorDetector {
     private final Thread worker;
@@ -19,6 +20,7 @@ public class ColorDetector {
     private Thread createWorkerThread() {
         return new Thread(() -> {
             this.isRunning = true;
+            this.reset();
             ColorThread[] colorThreads = initializeColorThreads();
             this.waitForColorThreadsToFinishWork(colorThreads);
             int[][][] colors = this.sumColorsFromColorThreads(colorThreads);
@@ -26,6 +28,15 @@ public class ColorDetector {
             this.showDominantColors(dominantColors);
             this.isRunning = false;
         });
+    }
+
+    private void reset() {
+        this.progressBar.setValue(0);
+        BufferedImage image = this.data.getImage();
+        this.progressBar.setMaximum(image.getHeight() * image.getWidth());
+        for (JLabel label : this.colorLabels) {
+            label.setVisible(false);
+        }
     }
 
     private ColorThread[] initializeColorThreads() {
