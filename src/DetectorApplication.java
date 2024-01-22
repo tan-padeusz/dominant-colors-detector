@@ -234,18 +234,6 @@ public class DetectorApplication {
         this.detector.start(data);
     }
 
-    private void makeColorLabelsInvisible() {
-        this.firstColorLabel.setVisible(false);
-        this.secondColorLabel.setVisible(false);
-        this.thirdColorLabel.setVisible(false);
-        this.fourthColorLabel.setVisible(false);
-    }
-
-    private void resetProgressBar() {
-        this.progressBar.setValue(0);
-        this.progressBar.setMaximum(this.sourceImage.getHeight() * this.sourceImage.getWidth());
-    }
-
     private void stopButtonClick(ActionEvent event) {
         this.detector.stop();
     }

@@ -37,7 +37,7 @@ public class ColorDetector {
 
     private void reset() {
         this.progressBar.setValue(0);
-        BufferedImage image = this.data.getImage();
+        BufferedImage image = this.data.image();
         this.progressBar.setMaximum(image.getHeight() * image.getWidth());
         for (JLabel label : this.colorLabels) {
             label.setVisible(false);
@@ -45,7 +45,7 @@ public class ColorDetector {
     }
 
     private ColorThread[] initializeColorThreads() {
-        ColorThread[] colorThreads = new ColorThread[this.data.getThreadsCount()];
+        ColorThread[] colorThreads = new ColorThread[this.data.threadsCount()];
         for (int index = 0; index < colorThreads.length; index++) {
             ColorThread colorThread = new ColorThread(index, this.data);
             colorThread.start();
@@ -83,10 +83,10 @@ public class ColorDetector {
     }
 
     private Color[] findAllDominantColors(int[][][] colors) {
-        Color[] dominantColors = new Color[this.data.getDominantColorsCount()];
+        Color[] dominantColors = new Color[this.data.dominantColorsCount()];
         for (int index = 0; index < dominantColors.length; index++) {
             Color dominantColor = ColorDetector.findSingleDominantColor(colors);
-            ColorDetector.removeSimilarColors(colors, dominantColor, this.data.getSimilarityThreshold());
+            ColorDetector.removeSimilarColors(colors, dominantColor, this.data.similarityThreshold());
             dominantColors[index] = dominantColor;
         }
         return dominantColors;

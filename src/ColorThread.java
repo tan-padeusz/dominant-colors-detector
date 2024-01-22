@@ -15,7 +15,7 @@ public class ColorThread {
         this.data = data;
         this.thread = new Thread(() -> {
             this.isRunning = true;
-            this.countColors(data.getImage(), data.getSimilarityThreshold(), this.data.getThreadsCount());
+            this.countColors(data.image(), data.similarityThreshold(), this.data.threadsCount());
             this.isRunning = false;
         });
     }
