@@ -3,93 +3,84 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 
 public class ColorDetector {
-    private Thread worker;
-    private InputData data;
-
     private final JProgressBar progressBar;
     private final JLabel[] colorLabels;
-
     private boolean isRunning;
+    private boolean hasCancellationPending;
 
     public ColorDetector(JProgressBar progressBar, JLabel[] colorLabels) {
         this.progressBar = progressBar;
         this.colorLabels = colorLabels;
     }
 
-    private void initializeWorkerThread() {
-        this.worker = new Thread(() -> {
-            this.isRunning = true;
-            this.reset();
-            ColorThread[] colorThreads = initializeColorThreads();
-            boolean result = this.waitForColorThreadsToFinishWork(colorThreads);
-            if (!result) {
-                this.reset();
-                this.isRunning = false;
-                return;
+    public void start(InputData data) {
+        if (this.isRunning) {
+            return;
+        }
+        Thread worker = this.createWorkerThread(data);
+        worker.start();
+    }
+
+    public void stop() {
+        if (!this.isRunning) {
+            return;
+        }
+        this.hasCancellationPending = true;
+    }
+
+    private Thread createWorkerThread(InputData data) {
+        return new Thread(() -> {
+            this.onWorkerStart(data);
+            ColorThread[] threads = ColorDetector.initializeColorThreads(data);
+            this.waitForColorThreadsToFinishWork(threads);
+            if (!this.hasCancellationPending) {
+                int[][][] rgbColors = ColorDetector.sumColorsFromColorThreads(threads);
+                Color[] dominantColors = ColorDetector.findAllDominantColors(data, rgbColors);
+                this.showDominantColors(dominantColors);
+                this.onWorkerStop(false);
             }
-            int[][][] colors = this.sumColorsFromColorThreads(colorThreads);
-            Color[] dominantColors = this.findAllDominantColors(colors);
-            this.showDominantColors(dominantColors);
-            this.isRunning = false;
+            this.onWorkerStop(this.hasCancellationPending);
         });
-        this.worker.start();
     }
 
-    private void reset() {
+    private void onWorkerStart(InputData data) {
+        this.isRunning = true;
+        this.hasCancellationPending = false;
+        this.showColorLabels(false);
         this.progressBar.setValue(0);
-        BufferedImage image = this.data.image();
+        BufferedImage image = data.image();
         this.progressBar.setMaximum(image.getHeight() * image.getWidth());
+    }
+
+    private void onWorkerStop(boolean forcedStop) {
+        this.showColorLabels(!forcedStop);
+        this.hasCancellationPending = false;
+        this.isRunning = false;
+    }
+
+    private void showColorLabels(boolean show) {
         for (JLabel label : this.colorLabels) {
-            label.setVisible(false);
+            label.setVisible(show);
         }
     }
 
-    private ColorThread[] initializeColorThreads() {
-        ColorThread[] colorThreads = new ColorThread[this.data.threadsCount()];
-        for (int index = 0; index < colorThreads.length; index++) {
-            ColorThread colorThread = new ColorThread(index, this.data);
-            colorThread.start();
-            colorThreads[index] = colorThread;
-        }
-        return colorThreads;
-    }
-
-    private boolean waitForColorThreadsToFinishWork(ColorThread[] colorThreads) {
+    private void waitForColorThreadsToFinishWork(ColorThread[] threads) {
         boolean areColorThreadsRunning = true;
         while (areColorThreadsRunning) {
-            if (this.worker.isInterrupted()) {
-                for (ColorThread ct : colorThreads) {
+            if (this.hasCancellationPending) {
+                for (ColorThread ct : threads) {
                     ct.stop();
                 }
-                return false;
+                return;
             }
             areColorThreadsRunning = false;
             int pixelsChecked = 0;
-            for (ColorThread colorThread : colorThreads) {
+            for (ColorThread colorThread : threads) {
                 areColorThreadsRunning |= colorThread.isRunning();
                 pixelsChecked += colorThread.getPixelsChecked();
             }
             this.progressBar.setValue(pixelsChecked);
         }
-        return true;
-    }
-
-    private int[][][] sumColorsFromColorThreads(ColorThread[] colorThreads) {
-        int[][][] colors = new int[256][256][256];
-        for (ColorThread colorThread : colorThreads) {
-            ColorDetector.sumColorArrays(colors, colorThread.getColors());
-        }
-        return colors;
-    }
-
-    private Color[] findAllDominantColors(int[][][] colors) {
-        Color[] dominantColors = new Color[this.data.dominantColorsCount()];
-        for (int index = 0; index < dominantColors.length; index++) {
-            Color dominantColor = ColorDetector.findSingleDominantColor(colors);
-            ColorDetector.removeSimilarColors(colors, dominantColor, this.data.similarityThreshold());
-            dominantColors[index] = dominantColor;
-        }
-        return dominantColors;
     }
 
     private void showDominantColors(Color[] dominantColors) {
@@ -102,6 +93,23 @@ public class ColorDetector {
         }
     }
 
+    private static ColorThread[] initializeColorThreads(InputData data) {
+        ColorThread[] threads = new ColorThread[data.threadsCount()];
+        for (int index = 0; index < data.threadsCount(); index++) {
+            threads[index] = new ColorThread(index, data);
+            threads[index].start();
+        }
+        return threads;
+    }
+
+    private static int[][][] sumColorsFromColorThreads(ColorThread[] threads) {
+        int[][][] colors = new int[256][256][256];
+        for (ColorThread colorThread : threads) {
+            ColorDetector.sumColorArrays(colors, colorThread.getColors());
+        }
+        return colors;
+    }
+
     private static void sumColorArrays(int[][][] target, int[][][] source) {
         for (int r = 0; r < 256; r++) {
             for (int g = 0; g < 256; g++) {
@@ -110,6 +118,16 @@ public class ColorDetector {
                 }
             }
         }
+    }
+
+    private static Color[] findAllDominantColors(InputData data, int[][][] colors) {
+        Color[] dominantColors = new Color[data.dominantColorsCount()];
+        for (int index = 0; index < dominantColors.length; index++) {
+            Color dominantColor = ColorDetector.findSingleDominantColor(colors);
+            ColorDetector.removeSimilarColors(colors, dominantColor, data.similarityThreshold());
+            dominantColors[index] = dominantColor;
+        }
+        return dominantColors;
     }
 
     private static Color findSingleDominantColor(int[][][] colors) {
@@ -147,17 +165,5 @@ public class ColorDetector {
                 }
             }
         }
-    }
-
-    public void start(InputData data) {
-        if (this.isRunning) {
-            return;
-        }
-        this.data = data;
-        this.initializeWorkerThread();
-    }
-
-    public void stop() {
-        this.worker.interrupt();
     }
 }
