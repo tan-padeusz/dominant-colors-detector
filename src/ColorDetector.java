@@ -31,10 +31,10 @@ public class ColorDetector {
     private Thread createWorkerThread(InputData data) {
         return new Thread(() -> {
             this.onWorkerStart(data);
-            ColorThread[] threads = ColorDetector.initializeColorThreads(data);
+            ColorCounterThread[] threads = ColorDetector.initializeCounterThreads(data);
             this.waitForColorThreadsToFinishWork(threads);
             if (!this.hasCancellationPending) {
-                int[][][] rgbColors = ColorDetector.sumColorsFromColorThreads(threads);
+                int[][][] rgbColors = ColorDetector.sumColorsFromCounterThreads(threads);
                 Color[] dominantColors = ColorDetector.findAllDominantColors(data, rgbColors);
                 this.showDominantColors(dominantColors);
                 this.onWorkerStop(false);
@@ -64,20 +64,20 @@ public class ColorDetector {
         }
     }
 
-    private void waitForColorThreadsToFinishWork(ColorThread[] threads) {
+    private void waitForColorThreadsToFinishWork(ColorCounterThread[] threads) {
         boolean areColorThreadsRunning = true;
         while (areColorThreadsRunning) {
             if (this.hasCancellationPending) {
-                for (ColorThread ct : threads) {
-                    ct.stop();
+                for (ColorCounterThread cct : threads) {
+                    cct.stop();
                 }
                 return;
             }
             areColorThreadsRunning = false;
             int pixelsChecked = 0;
-            for (ColorThread colorThread : threads) {
-                areColorThreadsRunning |= colorThread.isRunning();
-                pixelsChecked += colorThread.getPixelsChecked();
+            for (ColorCounterThread cct : threads) {
+                areColorThreadsRunning |= cct.isRunning();
+                pixelsChecked += cct.getPixelsChecked();
             }
             this.progressBar.setValue(pixelsChecked);
         }
@@ -93,19 +93,19 @@ public class ColorDetector {
         }
     }
 
-    private static ColorThread[] initializeColorThreads(InputData data) {
-        ColorThread[] threads = new ColorThread[data.threadsCount()];
+    private static ColorCounterThread[] initializeCounterThreads(InputData data) {
+        ColorCounterThread[] threads = new ColorCounterThread[data.threadsCount()];
         for (int index = 0; index < data.threadsCount(); index++) {
-            threads[index] = new ColorThread(index, data);
-            threads[index].start();
+            threads[index] = new ColorCounterThread(index);
+            threads[index].start(data);
         }
         return threads;
     }
 
-    private static int[][][] sumColorsFromColorThreads(ColorThread[] threads) {
+    private static int[][][] sumColorsFromCounterThreads(ColorCounterThread[] threads) {
         int[][][] colors = new int[256][256][256];
-        for (ColorThread colorThread : threads) {
-            ColorDetector.sumColorArrays(colors, colorThread.getColors());
+        for (ColorCounterThread cct : threads) {
+            ColorDetector.sumColorArrays(colors, cct.getColors());
         }
         return colors;
     }

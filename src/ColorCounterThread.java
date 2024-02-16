@@ -1,23 +1,45 @@
 import java.awt.*;
 import java.awt.image.BufferedImage;
 
-public class ColorThread {
+public class ColorCounterThread {
     private final int id;
-    private final InputData data;
-    private final Thread thread;
-
-    private int[][][] colors = new int[256][256][256];
+    private final int[][][] colors = new int[256][256][256];
     private int pixelsChecked = 0;
     private boolean isRunning;
 
-    public ColorThread(int id, InputData data) {
+    public ColorCounterThread(int id) {
         this.id = id;
-        this.data = data;
-        this.thread = new Thread(() -> {
-            this.isRunning = true;
-            this.countColors(data.image(), data.similarityThreshold(), this.data.threadsCount());
-            this.isRunning = false;
+    }
+
+    public void start(InputData data) {
+        if (this.isRunning) {
+            return;
+        }
+        Thread worker = this.createWorkerThread(data);
+        worker.start();
+    }
+
+    public void stop() {
+        if (!this.isRunning) {
+            return;
+        }
+        this.pixelsChecked = Integer.MAX_VALUE;
+    }
+
+    private Thread createWorkerThread(InputData data) {
+        return new Thread(() -> {
+            this.onWorkerStart();
+            this.countColors(data);
+            this.onWorkerStop();
         });
+    }
+
+    private void onWorkerStart() {
+        this.isRunning = true;
+    }
+
+    private void onWorkerStop() {
+        this.isRunning = false;
     }
 
     public int[][][] getColors() {
@@ -32,35 +54,18 @@ public class ColorThread {
         return this.isRunning;
     }
 
-    public void start() {
-        if (this.isRunning) {
-            return;
-        }
-        this.reset();
-        this.thread.start();
-    }
-
-    public void stop() {
-        this.pixelsChecked = Integer.MAX_VALUE;
-    }
-
-    private void reset() {
-        this.colors = new int[256][256][256];
-        this.pixelsChecked = 0;
-        this.isRunning = false;
-    }
-
-    private void countColors(BufferedImage image, int similarityThreshold, int threadsCount) {
+    private void countColors(InputData data) {
+        BufferedImage image = data.image();
         int totalPixels = image.getHeight() * image.getWidth();
-        int pixelsToCheck = totalPixels / threadsCount;
-        int heightPartSize = image.getHeight() / threadsCount;
+        int pixelsToCheck = totalPixels / data.threadsCount();
+        int heightPartSize = image.getHeight() / data.threadsCount();
         int startHeight = this.id * heightPartSize;
         int endHeight = (this.id + 1) * heightPartSize;
         int column = 0;
         int row = startHeight;
         while (this.pixelsChecked < pixelsToCheck) {
             Color color = new Color(image.getRGB(column, row));
-            this.addSimilarColors(color, similarityThreshold);
+            this.addSimilarColors(color, data.similarityThreshold());
             this.pixelsChecked++;
             row++;
             if (row >= endHeight) {
